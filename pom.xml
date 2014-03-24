@@ -24,8 +24,8 @@
 		</dependency>
 		<dependency>
 			<groupId>org.grails</groupId>
-			<artifactId>grails-plugin-gsp</artifactId>
-			<version>2.3.6</version>
+			<artifactId>grails-web-gsp</artifactId>
+			<version>2.4.0.BUILD-SNAPSHOT</version>
 			<exclusions>
 				<exclusion>
 					<groupId>org.codehaus.groovy</groupId>

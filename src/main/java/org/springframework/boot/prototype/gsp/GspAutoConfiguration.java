@@ -33,7 +33,6 @@ import org.codehaus.groovy.control.customizers.ASTTransformationCustomizer;
 import org.codehaus.groovy.grails.commons.DefaultGrailsTagLibClass;
 import org.codehaus.groovy.grails.commons.GrailsTagLibClass;
 import org.codehaus.groovy.grails.compiler.web.taglib.TagLibraryTransformer;
-import org.codehaus.groovy.grails.plugins.web.GroovyPagesGrailsPlugin;
 import org.codehaus.groovy.grails.web.pages.GroovyPagesTemplateEngine;
 import org.codehaus.groovy.grails.web.pages.TagLibraryLookup;
 import org.codehaus.groovy.transform.ASTTransformation;
@@ -50,7 +49,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 
 @Configuration
-@ConditionalOnClass(GroovyPagesGrailsPlugin.class)
+@ConditionalOnClass(GroovyPagesTemplateEngine.class)
 @AutoConfigureAfter(WebMvcAutoConfiguration.class)
 public class GspAutoConfiguration {
 
