@@ -33,6 +33,7 @@ import org.codehaus.groovy.control.customizers.ASTTransformationCustomizer;
 import org.codehaus.groovy.grails.commons.DefaultGrailsTagLibClass;
 import org.codehaus.groovy.grails.commons.GrailsTagLibClass;
 import org.codehaus.groovy.grails.compiler.web.taglib.TagLibraryTransformer;
+import org.codehaus.groovy.grails.plugins.web.taglib.SitemeshTagLib;
 import org.codehaus.groovy.grails.web.pages.GroovyPagesTemplateEngine;
 import org.codehaus.groovy.grails.web.pages.TagLibraryLookup;
 import org.codehaus.groovy.transform.ASTTransformation;
@@ -53,96 +54,101 @@ import org.springframework.core.io.ResourceLoader;
 @AutoConfigureAfter(WebMvcAutoConfiguration.class)
 public class GspAutoConfiguration {
 
+    @Configuration
+    @ConditionalOnMissingBean(GroovyPagesTemplateEngine.class)
+    protected static class GspDefaultConfiguration {
 
-	@Configuration
-	@ConditionalOnMissingBean(GroovyPagesTemplateEngine.class)
-	protected static class GspDefaultConfiguration {
+        // Bean must be called groovyPagesTemplateEngine so that it can be
+        // retrieved by DefaultGrailsApplicationAttributes
+        @Bean
+        public GroovyPagesTemplateEngine groovyPagesTemplateEngine() {
+            GroovyPagesTemplateEngine engine = new GroovyPagesTemplateEngine();
+            engine.setTagLibraryLookup(tagLibraryLookup());
+            return engine;
+        }
 
-		// Bean must be called groovyPagesTemplateEngine so that it can be retrieved by DefaultGrailsApplicationAttributes
-		@Bean
-		public GroovyPagesTemplateEngine groovyPagesTemplateEngine() {
-			GroovyPagesTemplateEngine engine = new GroovyPagesTemplateEngine();
-			engine.setTagLibraryLookup(tagLibraryLookup());
-			return engine;
-		}
+        @Bean
+        public TagLibraryLookup tagLibraryLookup() {
+            return new SpringBootTagLibraryLookup();
+        }
+    }
 
-		@Bean
-		public TagLibraryLookup tagLibraryLookup() {
-			return new SpringBootTagLibraryLookup();
-		}
-	}
+    @Configuration
+    @ConditionalOnClass({ Servlet.class })
+    protected static class GspViewResolverConfiguration {
 
-	@Configuration
-	@ConditionalOnClass({ Servlet.class })
-	protected static class GspViewResolverConfiguration {
+        @Autowired
+        private ResourceLoader resourceLoader = new DefaultResourceLoader();
 
-		@Autowired
-		private ResourceLoader resourceLoader = new DefaultResourceLoader();
+        @Autowired
+        private GroovyPagesTemplateEngine templateEngine;
 
-		@Autowired
-		private GroovyPagesTemplateEngine templateEngine;
+        @Bean
+        @ConditionalOnMissingBean(name = "gspViewResolver")
+        public GspViewResolver gspViewResolver() {
+            return new GspViewResolver(this.templateEngine, this.resourceLoader);
+        }
+    }
 
-		@Bean
-		@ConditionalOnMissingBean(name = "gspViewResolver")
-		public GspViewResolver gspViewResolver() {
-			return new GspViewResolver(this.templateEngine, this.resourceLoader);
-		}
-	}
+    private static final class SpringBootTagLibraryLookup extends TagLibraryLookup {
 
-	private static final class SpringBootTagLibraryLookup extends TagLibraryLookup {
+        private final Log logger = LogFactory.getLog(getClass());
 
-		private final Log logger = LogFactory.getLog(getClass());
+        private final GroovyClassLoader classLoader;
 
-		private final GroovyClassLoader classLoader;
+        private SpringBootTagLibraryLookup() {
+            CompilerConfiguration compilerConfiguration = new CompilerConfiguration(CompilerConfiguration.DEFAULT);
+            compilerConfiguration.addCompilationCustomizers(new ASTTransformationCustomizer(
+                    new TagLibraryTransformerASTTransformation()));
+            this.classLoader = new GroovyClassLoader(getClass().getClassLoader(), compilerConfiguration, false);
+        }
 
-		private SpringBootTagLibraryLookup() {
-			CompilerConfiguration compilerConfiguration = new CompilerConfiguration(CompilerConfiguration.DEFAULT);
-			compilerConfiguration.addCompilationCustomizers(new ASTTransformationCustomizer(new TagLibraryTransformerASTTransformation()));
-			this.classLoader = new GroovyClassLoader(getClass().getClassLoader(), compilerConfiguration, false);
-		}
+        public void afterPropertiesSet() {
+            registerTagLibraries();
+            registerTemplateNamespace();
+        }
 
-		public void afterPropertiesSet() {
-			registerTagLibraries();
-			registerTemplateNamespace();
-		}
+        protected void registerTagLibraries() {
+            registerTagLib(new DefaultGrailsTagLibClass(SitemeshTagLib.class));
 
-		protected void registerTagLibraries() {
-			Resource[] tagLibResources = null;
-			try {
-				tagLibResources = applicationContext.getResources("classpath:taglib/**/*TagLib.groovy");
-			} catch (IOException ex) {
-				this.logger.warn("Failed to get taglib classpath resources", ex);
-			}
+            Resource[] tagLibResources = null;
+            try {
+                tagLibResources = applicationContext.getResources("classpath:taglib/**/*TagLib.groovy");
+            }
+            catch (IOException ex) {
+                this.logger.warn("Failed to get taglib classpath resources", ex);
+            }
 
-			if (tagLibResources != null) {
-				for (Resource tagLibResource: tagLibResources) {
-					try {
-						registerTagLib(compileTagLibrary(tagLibResource));
-					} catch (IOException ex) {
-						this.logger.warn("Failed to compile tag library from resource '" + tagLibResource + "'");
-					}
-				}
-			}
-		}
+            if (tagLibResources != null) {
+                for (Resource tagLibResource : tagLibResources) {
+                    try {
+                        registerTagLib(compileTagLibrary(tagLibResource));
+                    }
+                    catch (IOException ex) {
+                        this.logger.warn("Failed to compile tag library from resource '" + tagLibResource + "'");
+                    }
+                }
+            }
+        }
 
-		private GrailsTagLibClass compileTagLibrary(Resource tagLibResource) throws IOException {
-			Class<?> compiledTagLibrary = classLoader.parseClass(tagLibResource.getFile());
-			return new DefaultGrailsTagLibClass(compiledTagLibrary);
-		}
+        private GrailsTagLibClass compileTagLibrary(Resource tagLibResource) throws IOException {
+            Class<?> compiledTagLibrary = classLoader.parseClass(tagLibResource.getFile());
+            return new DefaultGrailsTagLibClass(compiledTagLibrary);
+        }
 
-		@Override
-		protected void putTagLib(Map<String, Object> tags, String name, GrailsTagLibClass taglib) {
-			tags.put(name, taglib.newInstance());
-		}
-	}
+        @Override
+        protected void putTagLib(Map<String, Object> tags, String name, GrailsTagLibClass taglib) {
+            tags.put(name, taglib.newInstance());
+        }
+    }
 
-	@GroovyASTTransformation
-	private static final class TagLibraryTransformerASTTransformation implements ASTTransformation {
-		@Override
-		public void visit(ASTNode[] nodes, SourceUnit source) {
-			for (ClassNode classNode : source.getAST().getClasses()) {
-				new TagLibraryTransformer().performInjection(source, classNode);
-			}
-		}
-	}
+    @GroovyASTTransformation
+    private static final class TagLibraryTransformerASTTransformation implements ASTTransformation {
+        @Override
+        public void visit(ASTNode[] nodes, SourceUnit source) {
+            for (ClassNode classNode : source.getAST().getClasses()) {
+                new TagLibraryTransformer().performInjection(source, classNode);
+            }
+        }
+    }
 }
