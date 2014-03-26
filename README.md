@@ -8,7 +8,7 @@ This repository contains a prototype of [Groovy Server Pages (GSP)]
 
 The prototype can be built and run using Maven:
 
-`mvn spring-boot:run`
+`gradle bootRun`
 
 Then it can be accessed at [http://localhost:8080](http://localhost:8080).
 
@@ -21,8 +21,7 @@ the classpath.
 
 ## Tag libraries
 
-The prototype supports tag libraries. The pattern `classpath:taglib/**/*TagLib.groovy` is used to
-locate them.
+The prototype supports tag libraries. The grails.gsp.TagLib annotation is used to annotate them.
 
 ## Limitations
 
