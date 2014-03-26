@@ -16,28 +16,17 @@
 
 package org.springframework.boot.prototype.gsp;
 
-import groovy.lang.GroovyClassLoader;
-
-import java.io.IOException;
 import java.util.Map;
 
 import javax.servlet.Servlet;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.codehaus.groovy.ast.ASTNode;
-import org.codehaus.groovy.ast.ClassNode;
-import org.codehaus.groovy.control.CompilerConfiguration;
-import org.codehaus.groovy.control.SourceUnit;
-import org.codehaus.groovy.control.customizers.ASTTransformationCustomizer;
 import org.codehaus.groovy.grails.commons.DefaultGrailsTagLibClass;
 import org.codehaus.groovy.grails.commons.GrailsTagLibClass;
-import org.codehaus.groovy.grails.compiler.web.taglib.TagLibraryTransformer;
 import org.codehaus.groovy.grails.plugins.web.taglib.SitemeshTagLib;
 import org.codehaus.groovy.grails.web.pages.GroovyPagesTemplateEngine;
 import org.codehaus.groovy.grails.web.pages.TagLibraryLookup;
-import org.codehaus.groovy.transform.ASTTransformation;
-import org.codehaus.groovy.transform.GroovyASTTransformation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -46,8 +35,9 @@ import org.springframework.boot.autoconfigure.web.WebMvcAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.DefaultResourceLoader;
-import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
+
+import taglib.FormatTagLib;
 
 @Configuration
 @ConditionalOnClass(GroovyPagesTemplateEngine.class)
@@ -91,16 +81,10 @@ public class GspAutoConfiguration {
     }
 
     private static final class SpringBootTagLibraryLookup extends TagLibraryLookup {
-
         private final Log logger = LogFactory.getLog(getClass());
 
-        private final GroovyClassLoader classLoader;
-
         private SpringBootTagLibraryLookup() {
-            CompilerConfiguration compilerConfiguration = new CompilerConfiguration(CompilerConfiguration.DEFAULT);
-            compilerConfiguration.addCompilationCustomizers(new ASTTransformationCustomizer(
-                    new TagLibraryTransformerASTTransformation()));
-            this.classLoader = new GroovyClassLoader(getClass().getClassLoader(), compilerConfiguration, false);
+            
         }
 
         public void afterPropertiesSet() {
@@ -110,45 +94,12 @@ public class GspAutoConfiguration {
 
         protected void registerTagLibraries() {
             registerTagLib(new DefaultGrailsTagLibClass(SitemeshTagLib.class));
-
-            Resource[] tagLibResources = null;
-            try {
-                tagLibResources = applicationContext.getResources("classpath:taglib/**/*TagLib.groovy");
-            }
-            catch (IOException ex) {
-                this.logger.warn("Failed to get taglib classpath resources", ex);
-            }
-
-            if (tagLibResources != null) {
-                for (Resource tagLibResource : tagLibResources) {
-                    try {
-                        registerTagLib(compileTagLibrary(tagLibResource));
-                    }
-                    catch (IOException ex) {
-                        this.logger.warn("Failed to compile tag library from resource '" + tagLibResource + "'");
-                    }
-                }
-            }
-        }
-
-        private GrailsTagLibClass compileTagLibrary(Resource tagLibResource) throws IOException {
-            Class<?> compiledTagLibrary = classLoader.parseClass(tagLibResource.getFile());
-            return new DefaultGrailsTagLibClass(compiledTagLibrary);
+            registerTagLib(new DefaultGrailsTagLibClass(FormatTagLib.class));
         }
 
         @Override
         protected void putTagLib(Map<String, Object> tags, String name, GrailsTagLibClass taglib) {
             tags.put(name, taglib.newInstance());
-        }
-    }
-
-    @GroovyASTTransformation
-    private static final class TagLibraryTransformerASTTransformation implements ASTTransformation {
-        @Override
-        public void visit(ASTNode[] nodes, SourceUnit source) {
-            for (ClassNode classNode : source.getAST().getClasses()) {
-                new TagLibraryTransformer().performInjection(source, classNode);
-            }
         }
     }
 }
