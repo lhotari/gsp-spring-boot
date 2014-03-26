@@ -6,7 +6,7 @@ This repository contains a prototype of [Groovy Server Pages (GSP)]
 
 ## Running the prototype
 
-The prototype can be built and run using Maven:
+The prototype can be built and run using Gradle:
 
 `gradle bootRun`
 
