@@ -16,8 +16,13 @@
 
 package org.springframework.boot.prototype.gsp;
 
+import grails.gsp.TagLib;
+
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.codehaus.groovy.grails.commons.DefaultGrailsTagLibClass;
 import org.codehaus.groovy.grails.commons.GrailsTagLibClass;
@@ -25,7 +30,7 @@ import org.codehaus.groovy.grails.plugins.web.taglib.RenderTagLib;
 import org.codehaus.groovy.grails.plugins.web.taglib.SitemeshTagLib;
 import org.codehaus.groovy.grails.web.pages.GroovyPagesTemplateEngine;
 import org.codehaus.groovy.grails.web.pages.TagLibraryLookup;
-import org.springframework.beans.MutablePropertyValues;
+import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
@@ -35,15 +40,15 @@ import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.web.WebMvcAutoConfiguration;
+import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.ImportBeanDefinitionRegistrar;
+import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.core.type.AnnotationMetadata;
-
-import taglib.FormatTagLib;
 
 @Configuration
 @ConditionalOnClass(GroovyPagesTemplateEngine.class)
@@ -86,7 +91,6 @@ public class GspAutoConfiguration {
         protected void registerTagLibs(ManagedList<BeanDefinition> list) {
             list.add(createBeanDefinition(SitemeshTagLib.class));
             list.add(createBeanDefinition(RenderTagLib.class));
-            list.add(createBeanDefinition(FormatTagLib.class));
         }
 
         protected GenericBeanDefinition createBeanDefinition(Class<?> beanClass) {
@@ -97,8 +101,8 @@ public class GspAutoConfiguration {
         }
     }
 
-    private static final class SpringBootTagLibraryLookup extends TagLibraryLookup {
-        List<Object> tagLibInstances; 
+    private static final class SpringBootTagLibraryLookup extends TagLibraryLookup implements ApplicationListener<ContextRefreshedEvent> {
+        Set<Object> tagLibInstancesSet; 
         
         private SpringBootTagLibraryLookup() {
             
@@ -110,14 +114,16 @@ public class GspAutoConfiguration {
         }
 
         protected void registerTagLibraries() {
-            for(Object tagLibInstance : tagLibInstances) {
-                registerTagLib(new DefaultGrailsTagLibClass(tagLibInstance.getClass()));
+            if(tagLibInstancesSet != null) {
+                for(Object tagLibInstance : tagLibInstancesSet) {
+                    registerTagLib(new DefaultGrailsTagLibClass(tagLibInstance.getClass()));
+                }
             }
         }
 
         @Override
         protected void putTagLib(Map<String, Object> tags, String name, GrailsTagLibClass taglib) {
-            for(Object tagLibInstance : tagLibInstances) {
+            for(Object tagLibInstance : tagLibInstancesSet) {
                 if(tagLibInstance.getClass() == taglib.getClazz()) {
                     tags.put(name, tagLibInstance);
                     break;
@@ -125,12 +131,23 @@ public class GspAutoConfiguration {
             }
         }
 
-        public List<Object> getTagLibInstances() {
-            return tagLibInstances;
+        public void setTagLibInstances(List<Object> tagLibInstances) {
+            this.tagLibInstancesSet = new LinkedHashSet<Object>();
+            tagLibInstancesSet.addAll(tagLibInstances);
         }
 
-        public void setTagLibInstances(List<Object> tagLibInstances) {
-            this.tagLibInstances = tagLibInstances;
+        @Override
+        public void onApplicationEvent(ContextRefreshedEvent event) {
+            if(tagLibInstancesSet==null) {
+                tagLibInstancesSet = new LinkedHashSet<Object>();
+            }
+            Collection<Object> detectedInstances = ((ListableBeanFactory)applicationContext).getBeansWithAnnotation(TagLib.class).values();
+            for(Object instance : detectedInstances) {
+                if(!tagLibInstancesSet.contains(instance)) {
+                    tagLibInstancesSet.add(instance);
+                    registerTagLib(new DefaultGrailsTagLibClass(instance.getClass()));
+                }
+            }
         }
     }
     

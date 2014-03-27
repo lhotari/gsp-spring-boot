@@ -16,18 +16,25 @@
 
 package org.springframework.boot.prototype.gsp;
 
+import org.springframework.beans.factory.annotation.Autowire;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 
-@Configuration
+import taglib.FormatTagLib;
+
 @EnableAutoConfiguration
 @ComponentScan
+@Configuration
 public class PrototypeGspApplication {
-
+    @Bean(autowire=Autowire.BY_NAME) 
+    public Object formatTagLib() {
+        return new FormatTagLib();
+    }
+    
 	public static void main(String[] args) throws Exception {
 		SpringApplication.run(PrototypeGspApplication.class, args);
 	}
-
 }
