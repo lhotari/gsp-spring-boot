@@ -31,6 +31,7 @@ import org.codehaus.groovy.grails.plugins.web.taglib.SitemeshTagLib;
 import org.codehaus.groovy.grails.web.pages.GroovyPagesTemplateEngine;
 import org.codehaus.groovy.grails.web.pages.TagLibraryLookup;
 import org.springframework.beans.factory.ListableBeanFactory;
+import org.springframework.beans.factory.annotation.Autowire;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
@@ -55,20 +56,12 @@ import org.springframework.core.type.AnnotationMetadata;
 @AutoConfigureAfter(WebMvcAutoConfiguration.class)
 public class GspAutoConfiguration {
     @Configuration
-    @Import({GroovyPagesTemplateEngineRegistrar.class, TagLibraryLookupRegistrar.class})
+    @Import({TagLibraryLookupRegistrar.class})
     protected static class GspTemplateEngineAutoConfiguration {
-        
-    }
-    
-    protected static class GroovyPagesTemplateEngineRegistrar implements ImportBeanDefinitionRegistrar {
-        @Override
-        public void registerBeanDefinitions(AnnotationMetadata importingClassMetadata, BeanDefinitionRegistry registry) {
-            if(!registry.containsBeanDefinition("groovyPagesTemplateEngine")) {
-                GenericBeanDefinition beanDefinition = new GenericBeanDefinition();
-                beanDefinition.setBeanClass(GroovyPagesTemplateEngine.class);
-                beanDefinition.setAutowireMode(GenericBeanDefinition.AUTOWIRE_BY_NAME);
-                registry.registerBeanDefinition("groovyPagesTemplateEngine", beanDefinition);
-            }
+        @Bean(autowire=Autowire.BY_NAME)
+        @ConditionalOnMissingBean(name="groovyPagesTemplateEngine") 
+        GroovyPagesTemplateEngine groovyPagesTemplateEngine() {
+            return new GroovyPagesTemplateEngine();
         }
     }
     
