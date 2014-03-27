@@ -16,26 +16,32 @@
 
 package org.springframework.boot.prototype.gsp;
 
+import java.util.List;
 import java.util.Map;
 
-import javax.servlet.Servlet;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.codehaus.groovy.grails.commons.DefaultGrailsTagLibClass;
 import org.codehaus.groovy.grails.commons.GrailsTagLibClass;
+import org.codehaus.groovy.grails.plugins.web.taglib.RenderTagLib;
 import org.codehaus.groovy.grails.plugins.web.taglib.SitemeshTagLib;
 import org.codehaus.groovy.grails.web.pages.GroovyPagesTemplateEngine;
 import org.codehaus.groovy.grails.web.pages.TagLibraryLookup;
+import org.springframework.beans.MutablePropertyValues;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.support.BeanDefinitionRegistry;
+import org.springframework.beans.factory.support.GenericBeanDefinition;
+import org.springframework.beans.factory.support.ManagedList;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.web.WebMvcAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.ImportBeanDefinitionRegistrar;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.core.io.ResourceLoader;
+import org.springframework.core.type.AnnotationMetadata;
 
 import taglib.FormatTagLib;
 
@@ -43,46 +49,57 @@ import taglib.FormatTagLib;
 @ConditionalOnClass(GroovyPagesTemplateEngine.class)
 @AutoConfigureAfter(WebMvcAutoConfiguration.class)
 public class GspAutoConfiguration {
-
     @Configuration
-    @ConditionalOnMissingBean(GroovyPagesTemplateEngine.class)
-    protected static class GspDefaultConfiguration {
-
-        // Bean must be called groovyPagesTemplateEngine so that it can be
-        // retrieved by DefaultGrailsApplicationAttributes
-        @Bean
-        public GroovyPagesTemplateEngine groovyPagesTemplateEngine() {
-            GroovyPagesTemplateEngine engine = new GroovyPagesTemplateEngine();
-            engine.setTagLibraryLookup(tagLibraryLookup());
-            return engine;
-        }
-
-        @Bean
-        public TagLibraryLookup tagLibraryLookup() {
-            return new SpringBootTagLibraryLookup();
+    @Import({GroovyPagesTemplateEngineRegistrar.class, TagLibraryLookupRegistrar.class})
+    protected static class GspTemplateEngineAutoConfiguration {
+        
+    }
+    
+    protected static class GroovyPagesTemplateEngineRegistrar implements ImportBeanDefinitionRegistrar {
+        @Override
+        public void registerBeanDefinitions(AnnotationMetadata importingClassMetadata, BeanDefinitionRegistry registry) {
+            if(!registry.containsBeanDefinition("groovyPagesTemplateEngine")) {
+                GenericBeanDefinition beanDefinition = new GenericBeanDefinition();
+                beanDefinition.setBeanClass(GroovyPagesTemplateEngine.class);
+                beanDefinition.setAutowireMode(GenericBeanDefinition.AUTOWIRE_BY_NAME);
+                registry.registerBeanDefinition("groovyPagesTemplateEngine", beanDefinition);
+            }
         }
     }
+    
+    protected static class TagLibraryLookupRegistrar implements ImportBeanDefinitionRegistrar {
+        @Override
+        public void registerBeanDefinitions(AnnotationMetadata importingClassMetadata, BeanDefinitionRegistry registry) {
+            if(!registry.containsBeanDefinition("gspTagLibraryLookup")) {
+                GenericBeanDefinition beanDefinition = createBeanDefinition(SpringBootTagLibraryLookup.class);
+                
+                ManagedList<BeanDefinition> list = new ManagedList<BeanDefinition>();
+                registerTagLibs(list);
+                
+                beanDefinition.getPropertyValues().addPropertyValue("tagLibInstances", list);
+                
+                registry.registerBeanDefinition("gspTagLibraryLookup", beanDefinition);
+                registry.registerAlias("gspTagLibraryLookup", "tagLibraryLookup");
+            }
+        }
 
-    @Configuration
-    @ConditionalOnClass({ Servlet.class })
-    protected static class GspViewResolverConfiguration {
+        protected void registerTagLibs(ManagedList<BeanDefinition> list) {
+            list.add(createBeanDefinition(SitemeshTagLib.class));
+            list.add(createBeanDefinition(RenderTagLib.class));
+            list.add(createBeanDefinition(FormatTagLib.class));
+        }
 
-        @Autowired
-        private ResourceLoader resourceLoader = new DefaultResourceLoader();
-
-        @Autowired
-        private GroovyPagesTemplateEngine templateEngine;
-
-        @Bean
-        @ConditionalOnMissingBean(name = "gspViewResolver")
-        public GspViewResolver gspViewResolver() {
-            return new GspViewResolver(this.templateEngine, this.resourceLoader);
+        protected GenericBeanDefinition createBeanDefinition(Class<?> beanClass) {
+            GenericBeanDefinition beanDefinition = new GenericBeanDefinition();
+            beanDefinition.setBeanClass(beanClass);
+            beanDefinition.setAutowireMode(GenericBeanDefinition.AUTOWIRE_BY_NAME);
+            return beanDefinition;
         }
     }
 
     private static final class SpringBootTagLibraryLookup extends TagLibraryLookup {
-        private final Log logger = LogFactory.getLog(getClass());
-
+        List<Object> tagLibInstances; 
+        
         private SpringBootTagLibraryLookup() {
             
         }
@@ -93,13 +110,40 @@ public class GspAutoConfiguration {
         }
 
         protected void registerTagLibraries() {
-            registerTagLib(new DefaultGrailsTagLibClass(SitemeshTagLib.class));
-            registerTagLib(new DefaultGrailsTagLibClass(FormatTagLib.class));
+            for(Object tagLibInstance : tagLibInstances) {
+                registerTagLib(new DefaultGrailsTagLibClass(tagLibInstance.getClass()));
+            }
         }
 
         @Override
         protected void putTagLib(Map<String, Object> tags, String name, GrailsTagLibClass taglib) {
-            tags.put(name, taglib.newInstance());
+            for(Object tagLibInstance : tagLibInstances) {
+                if(tagLibInstance.getClass() == taglib.getClazz()) {
+                    tags.put(name, tagLibInstance);
+                    break;
+                }
+            }
+        }
+
+        public List<Object> getTagLibInstances() {
+            return tagLibInstances;
+        }
+
+        public void setTagLibInstances(List<Object> tagLibInstances) {
+            this.tagLibInstances = tagLibInstances;
         }
     }
+    
+    @Configuration
+    @AutoConfigureAfter(GspTemplateEngineAutoConfiguration.class)
+    protected static class GspViewResolverAutoConfiguration {
+        @Autowired
+        private ResourceLoader resourceLoader = new DefaultResourceLoader();
+
+        @Bean
+        @ConditionalOnMissingBean(name = "gspViewResolver")
+        public GspViewResolver gspViewResolver(GroovyPagesTemplateEngine groovyPagesTemplateEngine) {
+            return new GspViewResolver(groovyPagesTemplateEngine, this.resourceLoader);
+        }
+    }    
 }
