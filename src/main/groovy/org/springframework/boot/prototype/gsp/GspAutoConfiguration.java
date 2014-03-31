@@ -16,10 +16,15 @@
 
 package org.springframework.boot.prototype.gsp;
 
+import java.util.Arrays;
+import java.util.List;
+
 import org.codehaus.groovy.grails.web.pages.GroovyPagesTemplateEngine;
 import org.codehaus.groovy.grails.web.pages.StandaloneTagLibraryLookup;
+import org.codehaus.groovy.grails.web.pages.discovery.CachingGrailsConventionGroovyPageLocator;
+import org.codehaus.groovy.grails.web.pages.discovery.GroovyPageLocator;
+import org.codehaus.groovy.grails.web.servlet.view.GrailsViewResolver;
 import org.springframework.beans.factory.annotation.Autowire;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.beans.factory.support.GenericBeanDefinition;
@@ -32,8 +37,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.ImportBeanDefinitionRegistrar;
-import org.springframework.core.io.DefaultResourceLoader;
-import org.springframework.core.io.ResourceLoader;
 import org.springframework.core.type.AnnotationMetadata;
 
 @Configuration
@@ -48,6 +51,22 @@ public class GspAutoConfiguration {
         GroovyPagesTemplateEngine groovyPagesTemplateEngine() {
             return new GroovyPagesTemplateEngine();
         }
+        
+        @Bean(autowire=Autowire.BY_NAME)
+        @ConditionalOnMissingBean(name="groovyPageLocator")
+        GroovyPageLocator groovyPageLocator() {
+            return new CachingGrailsConventionGroovyPageLocator() {
+                protected List<String> resolveSearchPaths(String uri) {
+                    return Arrays.asList(new String[]{"classpath:/templates" + uri, uri});
+                }
+            };
+        }
+        
+        /*
+        MimeTypeResolver mimeTypeResolver() {
+            return new DefaultMimeTypeResolver();
+        }
+        */
     }
     
     protected static class TagLibraryLookupRegistrar implements ImportBeanDefinitionRegistrar {
@@ -83,6 +102,7 @@ public class GspAutoConfiguration {
     @Configuration
     @AutoConfigureAfter(GspTemplateEngineAutoConfiguration.class)
     protected static class GspViewResolverAutoConfiguration {
+        /*
         @Autowired
         private ResourceLoader resourceLoader = new DefaultResourceLoader();
 
@@ -90,6 +110,12 @@ public class GspAutoConfiguration {
         @ConditionalOnMissingBean(name = "gspViewResolver")
         public GspViewResolver gspViewResolver(GroovyPagesTemplateEngine groovyPagesTemplateEngine) {
             return new GspViewResolver(groovyPagesTemplateEngine, this.resourceLoader);
+        }
+        */
+        @Bean(autowire=Autowire.BY_NAME)
+        @ConditionalOnMissingBean(name = "gspViewResolver")
+        public GrailsViewResolver gspViewResolver() {
+            return new GrailsViewResolver();
         }
     }    
 }
