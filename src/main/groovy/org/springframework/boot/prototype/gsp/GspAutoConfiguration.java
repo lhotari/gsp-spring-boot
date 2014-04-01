@@ -55,11 +55,13 @@ public class GspAutoConfiguration {
         @Bean(autowire=Autowire.BY_NAME)
         @ConditionalOnMissingBean(name="groovyPageLocator")
         GroovyPageLocator groovyPageLocator() {
-            return new CachingGrailsConventionGroovyPageLocator() {
+            CachingGrailsConventionGroovyPageLocator pageLocator = new CachingGrailsConventionGroovyPageLocator() {
                 protected List<String> resolveSearchPaths(String uri) {
                     return Arrays.asList(new String[]{"classpath:/templates" + uri, uri});
                 }
             };
+            pageLocator.setReloadEnabled(false);
+            return pageLocator;
         }
         
         /*
@@ -115,7 +117,9 @@ public class GspAutoConfiguration {
         @Bean(autowire=Autowire.BY_NAME)
         @ConditionalOnMissingBean(name = "gspViewResolver")
         public GrailsViewResolver gspViewResolver() {
-            return new GrailsViewResolver();
+            GrailsViewResolver gspViewResolver = new GrailsViewResolver();
+            gspViewResolver.setAllowGrailsViewCaching(true);
+            return gspViewResolver;
         }
     }    
 }
