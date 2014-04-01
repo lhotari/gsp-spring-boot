@@ -64,11 +64,13 @@ public class GspAutoConfiguration {
             return pageLocator;
         }
         
-        /*
-        MimeTypeResolver mimeTypeResolver() {
-            return new DefaultMimeTypeResolver();
+        @Bean(autowire=Autowire.BY_NAME)
+        @ConditionalOnMissingBean(name = "gspViewResolver")
+        public GrailsViewResolver gspViewResolver() {
+            GrailsViewResolver gspViewResolver = new GrailsViewResolver();
+            gspViewResolver.setAllowGrailsViewCaching(true);
+            return gspViewResolver;
         }
-        */
     }
     
     protected static class TagLibraryLookupRegistrar implements ImportBeanDefinitionRegistrar {
@@ -100,26 +102,4 @@ public class GspAutoConfiguration {
             return beanDefinition;
         }
     }
-    
-    @Configuration
-    @AutoConfigureAfter(GspTemplateEngineAutoConfiguration.class)
-    protected static class GspViewResolverAutoConfiguration {
-        /*
-        @Autowired
-        private ResourceLoader resourceLoader = new DefaultResourceLoader();
-
-        @Bean
-        @ConditionalOnMissingBean(name = "gspViewResolver")
-        public GspViewResolver gspViewResolver(GroovyPagesTemplateEngine groovyPagesTemplateEngine) {
-            return new GspViewResolver(groovyPagesTemplateEngine, this.resourceLoader);
-        }
-        */
-        @Bean(autowire=Autowire.BY_NAME)
-        @ConditionalOnMissingBean(name = "gspViewResolver")
-        public GrailsViewResolver gspViewResolver() {
-            GrailsViewResolver gspViewResolver = new GrailsViewResolver();
-            gspViewResolver.setAllowGrailsViewCaching(true);
-            return gspViewResolver;
-        }
-    }    
 }
